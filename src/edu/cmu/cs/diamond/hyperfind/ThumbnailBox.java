@@ -65,7 +65,7 @@ import edu.cmu.cs.diamond.opendiamond.*;
 
 /**
  * The ThumbnailBox contains a scrolling panel of the thumbnails of search results
- * and a conditional "Get next xxx results" button.
+ * + a conditional "Get next xxx results" button + statistics bar
  * NOTE: Status for start, stop buttons and stats bar is changed within the class.
  */
 public class ThumbnailBox extends JPanel {

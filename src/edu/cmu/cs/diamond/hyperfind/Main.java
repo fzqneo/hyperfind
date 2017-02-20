@@ -140,6 +140,13 @@ public final class Main {
         final JList resultsList = new JList();
         final StatisticsBar stats = new StatisticsBar();
 
+        final JButton downloadButton = new JButton("Download");
+
+        /* Create a marker combo box for user to mark search results with different tags */
+        /* TODO Create a enum type for marker type and parameterize the list */
+        ArrayList<String> markerList = new ArrayList<String>(Arrays.asList("True Pos", "False Pos", "False Neg"));
+        final JComboBox markerSelector = new JComboBox(markerList.toArray());
+
 
         /* FIXME Create a thread pool to .... do what ? */
         ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(16, 16,
@@ -519,10 +526,17 @@ public final class Main {
 
         b.add(c1);
 
-        // right side
+        // middle side
         Box c2 = Box.createVerticalBox();
         c2.add(results);
         b.add(c2);
+
+
+        // right side
+        Box c3 = Box.createVerticalBox();
+        c3.add(markerSelector);
+        c3.add(downloadButton);
+        b.add(c3);
 
         frame.pack();
 
@@ -540,6 +554,7 @@ public final class Main {
                 }
             }
         });
+
 
         /* -------------------------------------*
         /* End layout */
