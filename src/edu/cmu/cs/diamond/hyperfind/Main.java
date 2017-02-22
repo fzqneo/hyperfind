@@ -164,7 +164,7 @@ public final class Main {
         final Marker[] markerList = new Marker[]{new Marker("True-Pos", Color.GREEN), new Marker("False-Pos", Color.RED)};
 //        ArrayList<String> markerList = new ArrayList<String>(Arrays.asList("True Pos", "False Pos", "False Neg"));
         final JComboBox markerSelector = new JComboBox(markerList);
-        final JLabel markerInfo = new JLabel();
+        final JLabel markerInfo = new JLabel("Images selected: 0", SwingConstants.CENTER);
 
 
         /* FIXME Create a thread pool to .... do what ? */
@@ -513,6 +513,7 @@ public final class Main {
                                         JOptionPane.showMessageDialog(frame, "Fail to save to directory " + folder);
                                     }
                                 }
+                                JOptionPane.showMessageDialog(frame, "Done. Files are saved under " + folder);
 
                             }
 
@@ -684,8 +685,10 @@ public final class Main {
         JPanel markerPanel = new JPanel();
         markerPanel.add(markerSelector);
         c3.add(markerPanel);
-        c3.add(markerInfo);
-        c3.add(downloadButton);
+        markerPanel.add(markerInfo);
+        Box h2 = Box.createHorizontalBox();
+        h2.add(downloadButton);
+        c3.add(h2);
         b.add(c3);
 
         frame.pack();
