@@ -101,7 +101,7 @@ public class ThumbnailBox extends JPanel {
      * @param stopButton
      * @param startButton
      * @param list The Jlist of image thumbnails.
-     * @param stats
+     * @param stats Stats bar. Event handler will be set here.
      * @param resultsPerScreen The amount of "Get next"
      */
     public ThumbnailBox(JButton stopButton, JButton startButton, JList list,
@@ -115,6 +115,8 @@ public class ThumbnailBox extends JPanel {
         this.resultsPerScreen = resultsPerScreen;
 
         final ThumbnailBox tb = this;
+
+        // Add listeners to selection on the result list
         list.addListSelectionListener(new ListSelectionListener() {
             @Override
             public void valueChanged(ListSelectionEvent e) {
@@ -128,11 +130,13 @@ public class ThumbnailBox extends JPanel {
                 for (HyperFindSearchMonitor sm : tb.searchMonitors) {
                     sm.selectionChanged(results);
                 }
+                // TODO Handle marker here?
             }
         });
 
         setLayout(new BorderLayout());
 
+        // Scrolling panel for results
         JPanel panel = new JPanel();
         panel.setLayout(new BorderLayout());
         JScrollPane jsp = new JScrollPane(list);
@@ -143,7 +147,7 @@ public class ThumbnailBox extends JPanel {
 
         panel.add(jsp);
 
-        // more results button
+        // "Get Next xxx result" button
         moreResultsButton = new JButton("Get next " + resultsPerScreen
                 + " results");
         moreResultsButton.setVisible(false);
@@ -372,8 +376,9 @@ public class ThumbnailBox extends JPanel {
                     if (resultIcon == PAUSE_RESULT) {
                         moreResultsButton.setVisible(true);
                         revalidate();
-                        repaint();
+                        repaint();  // Repaint this Thumbnail box
                     } else {
+                        /* Add newly fetched search result to result list */
                         model.addElement(resultIcon);
                     }
                 }

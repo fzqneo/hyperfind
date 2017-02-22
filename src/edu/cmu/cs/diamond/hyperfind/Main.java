@@ -40,20 +40,19 @@
 
 package edu.cmu.cs.diamond.hyperfind;
 
-import java.awt.Component;
-import java.awt.Cursor;
-import java.awt.Dimension;
-import java.awt.Toolkit;
+import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.lang.reflect.Field;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.List;
+import java.util.concurrent.*;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -82,9 +81,9 @@ public final class Main {
     private final JComboBox codecs;
 
     private Main(JFrame frame, ThumbnailBox results, PredicateListModel model,
-            CookieMap initialCookieMap,
-            List<HyperFindPredicateFactory> examplePredicateFactories,
-            JComboBox codecs) {
+                 CookieMap initialCookieMap,
+                 List<HyperFindPredicateFactory> examplePredicateFactories,
+                 JComboBox codecs) {
         this.frame = frame;
         this.results = results;
         this.model = model;
@@ -108,7 +107,7 @@ public final class Main {
     }
 
     public static Main createMain(List<File> bundleDirectories,
-            List<File> filterDirectories) throws IOException {
+                                  List<File> filterDirectories) throws IOException {
 
         /* Set Window title */
         // ugly hack to set application name for GNOME Shell
@@ -129,7 +128,7 @@ public final class Main {
 
         final List<HyperFindPredicateFactory> factories =
                 HyperFindPredicateFactory
-                .createHyperFindPredicateFactories(bundleFactory);
+                        .createHyperFindPredicateFactories(bundleFactory);
 
 
         /* Create GUI components */
@@ -140,6 +139,7 @@ public final class Main {
         final JList resultsList = new JList();
         final StatisticsBar stats = new StatisticsBar();
 
+        // TODO Move it to class member
         final JButton downloadButton = new JButton("Download");
 
         /* Create a marker combo box for user to mark search results with different tags */
@@ -166,7 +166,7 @@ public final class Main {
         ThumbnailBox results = new ThumbnailBox(stopButton, startButton,
                 resultsList, stats, 500);
 
-        // predicate list
+        // Create predicate list
         final PredicateListModel model = new PredicateListModel();
         final PredicateList predicateList = new PredicateList(model);
 
@@ -222,7 +222,7 @@ public final class Main {
                         getSystemClipboard();
                 TransferHandler.TransferSupport ts =
                         new TransferHandler.TransferSupport(predicateList,
-                        clip.getContents(predicateList));
+                                clip.getContents(predicateList));
                 predicateList.getTransferHandler().importData(ts);
             }
         };
@@ -234,7 +234,7 @@ public final class Main {
         predicates.add(new JMenuItem(pasteAction));
 
 
-        /* Add "From Screenshot" option to "+" menu */
+        /* Add "From Files" option to "+" menu */
         JMenuItem fromFileMenuItem = new JMenuItem("From File...");
         predicates.add(fromFileMenuItem);
         fromFileMenuItem.addActionListener(new ActionListener() {
@@ -245,7 +245,7 @@ public final class Main {
                 // predicate filter
                 FileNameExtensionFilter predicateFilter =
                         new FileNameExtensionFilter("Predicate Files",
-                        BundleType.PREDICATE.getExtension());
+                                BundleType.PREDICATE.getExtension());
                 // image filter
                 String[] suffixes = ImageIO.getReaderFileSuffixes();
                 List<String> filteredSuffixes = new ArrayList<String>();
@@ -256,12 +256,12 @@ public final class Main {
                 }
                 FileNameExtensionFilter imageFilter =
                         new FileNameExtensionFilter("Images",
-                        filteredSuffixes.toArray(new String[0]));
+                                filteredSuffixes.toArray(new String[0]));
                 // combined filter
                 filteredSuffixes.add(BundleType.PREDICATE.getExtension());
                 FileNameExtensionFilter combinedFilter =
                         new FileNameExtensionFilter("Predicate Files, Images",
-                        filteredSuffixes.toArray(new String[0]));
+                                filteredSuffixes.toArray(new String[0]));
                 // enable filters
                 chooser.setFileFilter(combinedFilter);
                 chooser.addChoosableFileFilter(predicateFilter);
@@ -288,7 +288,7 @@ public final class Main {
                             m.popup(f.getName(), img);
                         } catch (IOException e2) {
                             JOptionPane.showMessageDialog(frame, e2
-                                    .getLocalizedMessage(), "Error Reading File",
+                                            .getLocalizedMessage(), "Error Reading File",
                                     JOptionPane.ERROR_MESSAGE);
                             e2.printStackTrace();
                         }
@@ -377,7 +377,7 @@ public final class Main {
                     // start search
                     HyperFindPredicate p = (HyperFindPredicate) codecs
                             .getSelectedItem();
-                    List<Filter> filters = new ArrayList<Filter>(
+                    final List<Filter> filters = new ArrayList<Filter>(
                             p.createFilters());
 
                     // give the ResultExportTransferHandler a different
@@ -392,7 +392,7 @@ public final class Main {
 
                     List<HyperFindSearchMonitor> monitors =
                             HyperFindSearchMonitorFactory
-                            .getInterestedSearchMonitors(m.cookies, filters);
+                                    .getInterestedSearchMonitors(m.cookies, filters);
 
                     // push attributes
                     Set<String> attributes = new HashSet<String>();
@@ -414,6 +414,89 @@ public final class Main {
                     attributes.addAll(ResultRegions.
                             getPushAttributes(filterNames));
 
+
+                    /*------------------------------*/
+                    /* Download files functionality */
+                    /*------------------------------*/
+                    // TODO Give different marker different selected colors
+                    resultsList.setSelectionBackground(Color.BLUE);
+                    ActionListener downloadButtonActionListener = new ActionListener() {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            // XXX The code below is mostly copied from ResultExportTransferHandler
+                            final Object[] values = resultsList.getSelectedValues();
+                            System.out.format("Downloading %d files.\n", values.length);
+
+                            final List<ResultIcon> results = new ArrayList<ResultIcon>();
+
+                            for (Object o : values) {
+                                ResultIcon r = (ResultIcon) o;
+                                results.add(r);
+                            }
+
+                            // Launch the file download jobs
+                            final ArrayList<Future<File>> futureFiles = new ArrayList<Future<File>>();
+                            for (final ResultIcon r : results) {
+                                futureFiles.add(executor.submit(new Callable<File>() {
+                                    @Override
+                                    public File call() throws Exception {
+                                        // System.out.println("running...");
+                                        BufferedImage img = Util
+                                                .extractImageFromResultIdentifier(r
+                                                        .getResult().getResult()
+                                                        .getObjectIdentifier(), m.createFactory(filters));
+                                        File f = File.createTempFile("hyperfind-export-",
+                                                ".png");
+                                        f.deleteOnExit();
+
+                                        ImageIO.write(img, "png", f);
+
+                                        // System.out.println("done");
+
+                                        return f;
+                                    }
+                                }));
+                            }
+
+                            // Choose folder to save
+                            JFileChooser fc = new JFileChooser();
+                            fc.setCurrentDirectory(new File(System.getProperty("user.dir")));
+                            fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+                            int rv = fc.showSaveDialog(frame);
+                            if (JFileChooser.APPROVE_OPTION == rv) {
+                                File folder = fc.getSelectedFile();
+                                Path destDir = Paths.get(folder.getPath(), "hyperfind-download");
+                                System.out.println("Creating directory " + destDir);
+
+                                try {
+                                    // Copy the file from temp dir to user-specified dir
+                                    Files.createDirectories(destDir);
+                                    for (Future<File> future : futureFiles) {
+                                        File f = future.get();
+                                        Path p = Files.copy(f.toPath(), destDir.resolve(f.toPath().getFileName()));
+                                        System.out.println("Saving file " + p);
+                                    }
+
+                                } catch (InterruptedException e1) {
+                                    e1.printStackTrace();
+                                } catch (ExecutionException e1) {
+                                    e1.printStackTrace();
+                                } catch (IOException e1) {
+                                    e1.printStackTrace();
+                                    JOptionPane.showMessageDialog(frame, "Fail to save to directory " + folder);
+                                }
+                            }
+
+
+                        }
+                    };
+                    for (ActionListener l : downloadButton.getActionListeners()) {
+                        downloadButton.removeActionListener(l);
+                    }
+                    downloadButton.addActionListener(downloadButtonActionListener);
+                    /*------- End of Download functionality --------------*/
+
+
                     m.search = factory.createSearch(attributes);
 
                     // clear old state
@@ -422,7 +505,7 @@ public final class Main {
                     // start
                     m.results.start(m.search, new ActivePredicateSet(m,
                                     model.getSelectedPredicates(), factory),
-                                    monitors);
+                            monitors);
                 } catch (IOException e1) {
                     Throwable e2 = e1.getCause();
                     stats.showException(e2 != null ? e2 : e1);
@@ -456,10 +539,10 @@ public final class Main {
 
 
         /* Result List Controller and Render */
-
         resultsList.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
+                /* Double click opens the image */
                 if (e.getClickCount() == 2) {
                     int index = resultsList.locationToIndex(e.getPoint());
                     if (index == -1) {
@@ -635,6 +718,11 @@ public final class Main {
         popupFrame.setVisible(true);
     }
 
+    /**
+     * Fetch the full fidelity (?) image and display it in the popup windows
+     *
+     * @param result
+     */
     void reexecute(HyperFindResult result) {
         ObjectIdentifier id = result.getResult().getObjectIdentifier();
         ActivePredicateSet ps = result.getActivePredicateSet();
@@ -654,7 +742,7 @@ public final class Main {
 
     // returns null if object was dropped
     private ResultRegions getRegions(HyperFindPredicate predicate,
-            ObjectIdentifier objectID, byte[] data) throws IOException {
+                                     ObjectIdentifier objectID, byte[] data) throws IOException {
         // Create factory
         HyperFindPredicate p = (HyperFindPredicate) codecs.getSelectedItem();
         List<Filter> filters = new ArrayList<Filter>(p.createFilters());
@@ -685,7 +773,7 @@ public final class Main {
     }
 
     ResultRegions getRegions(HyperFindPredicate predicate,
-            ObjectIdentifier objectID) throws IOException {
+                             ObjectIdentifier objectID) throws IOException {
         return getRegions(predicate, objectID, null);
     }
 
