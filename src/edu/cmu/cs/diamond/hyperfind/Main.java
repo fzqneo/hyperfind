@@ -161,9 +161,10 @@ public final class Main {
 
         /* Create a marker combo box for user to mark search results with different tags */
         /* TODO Create a enum type for marker type and parameterize the list */
-        Marker[] markerList = new Marker[]{new Marker("True-Pos", Color.GREEN), new Marker("False-Pos", Color.RED)};
+        final Marker[] markerList = new Marker[]{new Marker("True-Pos", Color.GREEN), new Marker("False-Pos", Color.RED)};
 //        ArrayList<String> markerList = new ArrayList<String>(Arrays.asList("True Pos", "False Pos", "False Neg"));
         final JComboBox markerSelector = new JComboBox(markerList);
+        final JLabel markerInfo = new JLabel();
 
 
         /* FIXME Create a thread pool to .... do what ? */
@@ -436,45 +437,12 @@ public final class Main {
                     /*------------------------------*/
                     /* Download files functionality */
                     /*------------------------------*/
-                    // TODO Give different marker different selected colors
-                    resultsList.setSelectionBackground(Color.BLUE);
                     ActionListener downloadButtonActionListener = new ActionListener() {
                         @Override
                         public void actionPerformed(ActionEvent e) {
                             // XXX The code below is mostly copied from ResultExportTransferHandler
-                            final Object[] values = resultsList.getSelectedValues();
-                            System.out.format("Downloading %d files.\n", values.length);
 
-                            final List<ResultIcon> results = new ArrayList<ResultIcon>();
-
-                            for (Object o : values) {
-                                ResultIcon r = (ResultIcon) o;
-                                results.add(r);
-                            }
-
-                            // Launch the file download jobs
-                            final ArrayList<Future<File>> futureFiles = new ArrayList<Future<File>>();
-                            for (final ResultIcon r : results) {
-                                futureFiles.add(executor.submit(new Callable<File>() {
-                                    @Override
-                                    public File call() throws Exception {
-                                        // System.out.println("running...");
-                                        BufferedImage img = Util
-                                                .extractImageFromResultIdentifier(r
-                                                        .getResult().getResult()
-                                                        .getObjectIdentifier(), m.createFactory(filters));
-                                        File f = File.createTempFile("hyperfind-export-",
-                                                ".png");
-                                        f.deleteOnExit();
-
-                                        ImageIO.write(img, "png", f);
-
-                                        // System.out.println("done");
-
-                                        return f;
-                                    }
-                                }));
-                            }
+//                            final Object[] values = resultsList.getSelectedValues();
 
                             // Choose folder to save
                             JFileChooser fc = new JFileChooser();
@@ -483,26 +451,69 @@ public final class Main {
                             int rv = fc.showSaveDialog(frame);
                             if (JFileChooser.APPROVE_OPTION == rv) {
                                 File folder = fc.getSelectedFile();
-                                Path destDir = Paths.get(folder.getPath(), "hyperfind-download");
-                                System.out.println("Creating directory " + destDir);
 
-                                try {
-                                    // Copy the file from temp dir to user-specified dir
-                                    Files.createDirectories(destDir);
-                                    for (Future<File> future : futureFiles) {
-                                        File f = future.get();
-                                        Path p = Files.copy(f.toPath(), destDir.resolve(f.toPath().getFileName()));
-                                        System.out.println("Saving file " + p);
+                                // Loop through each marker
+                                for(Marker marker : markerList){
+                                    try {
+                                        // Retrieve result icons from marker's index set
+                                        HashSet<Object> values = new HashSet<Object>();
+                                        for(Integer ind : marker.selection){
+                                            values.add(resultsList.getModel().getElementAt(ind));
+                                        }
+
+                                        final List<ResultIcon> results = new ArrayList<ResultIcon>();
+
+                                        for (Object o : values) {
+                                            ResultIcon r = (ResultIcon) o;
+                                            results.add(r);
+                                        }
+                                        // Launch job to retrieve files
+                                        final ArrayList<Future<File>> futureFiles = new ArrayList<Future<File>>();
+                                        for (final ResultIcon r : results) {
+                                            futureFiles.add(executor.submit(new Callable<File>() {
+                                                @Override
+                                                public File call() throws Exception {
+                                                    // System.out.println("running...");
+                                                    BufferedImage img = Util
+                                                            .extractImageFromResultIdentifier(r
+                                                                    .getResult().getResult()
+                                                                    .getObjectIdentifier(), m.createFactory(filters));
+                                                    // TODO We can optimize this out and directly store to local dir
+                                                    File f = File.createTempFile("hyperfind-export-",
+                                                            ".png");
+                                                    f.deleteOnExit();
+
+                                                    ImageIO.write(img, "png", f);
+
+                                                    // System.out.println("done");
+
+                                                    return f;
+                                                }
+                                            }));
+                                        }
+
+                                        // Create directory if necessary
+                                        Path destDir = Paths.get(folder.getPath(), "hyperfind-download", marker.name);
+                                        System.out.println("Creating directory " + destDir);
+                                        Files.createDirectories(destDir);
+
+                                        // Copy file from temp dir to dest dir
+                                        for (Future<File> future : futureFiles) {
+                                            File f = future.get();
+                                            Path p = Files.copy(f.toPath(), destDir.resolve(f.toPath().getFileName()));
+                                            System.out.println("Saving file " + p);
+                                        }
+
+                                    } catch (InterruptedException e1) {
+                                        e1.printStackTrace();
+                                    } catch (ExecutionException e1) {
+                                        e1.printStackTrace();
+                                    } catch (IOException e1) {
+                                        e1.printStackTrace();
+                                        JOptionPane.showMessageDialog(frame, "Fail to save to directory " + folder);
                                     }
-
-                                } catch (InterruptedException e1) {
-                                    e1.printStackTrace();
-                                } catch (ExecutionException e1) {
-                                    e1.printStackTrace();
-                                } catch (IOException e1) {
-                                    e1.printStackTrace();
-                                    JOptionPane.showMessageDialog(frame, "Fail to save to directory " + folder);
                                 }
+
                             }
 
 
@@ -588,7 +599,7 @@ public final class Main {
             @Override
             public void actionPerformed(ActionEvent e) {
                 Marker marker = (Marker) markerSelector.getSelectedItem();
-                System.out.format("Markder %s selected.\n", marker);
+                System.out.format("Marker %s selected.\n", marker);
                 int[] a = new int[marker.selection.size()];
                 int i = 0;
                 for(Integer ind : marker.selection){
@@ -597,17 +608,20 @@ public final class Main {
                 resultsList.setSelectedIndices(a);
                 resultsList.setSelectionBackground(marker.color);
                 resultsList.repaint();
+
+                markerInfo.setText("Images selected: " + marker.selection.size());
             }
         });
 
         resultsList.addListSelectionListener(new ListSelectionListener() {
             @Override
             public void valueChanged(ListSelectionEvent e) {
-                Marker curMarker = (Marker) markerSelector.getSelectedItem();
-                curMarker.selection.clear();
+                Marker marker = (Marker) markerSelector.getSelectedItem();
+                marker.selection.clear();
                 for(int ind : resultsList.getSelectedIndices()){
-                    curMarker.selection.add(ind);
+                    marker.selection.add(ind);
                 }
+                markerInfo.setText("Images selected: " + marker.selection.size());
             }
         });
 
@@ -667,7 +681,10 @@ public final class Main {
 
         // right side
         Box c3 = Box.createVerticalBox();
-        c3.add(markerSelector);
+        JPanel markerPanel = new JPanel();
+        markerPanel.add(markerSelector);
+        c3.add(markerPanel);
+        c3.add(markerInfo);
         c3.add(downloadButton);
         b.add(c3);
 
