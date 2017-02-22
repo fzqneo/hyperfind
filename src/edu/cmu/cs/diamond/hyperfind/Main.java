@@ -46,7 +46,6 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.lang.reflect.Field;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -56,6 +55,8 @@ import java.util.concurrent.*;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 import edu.cmu.cs.diamond.opendiamond.*;
@@ -79,6 +80,22 @@ public final class Main {
     private final JFrame popupFrame;
 
     private final JComboBox codecs;
+
+    public static class Marker {
+        public final String name;
+        public final Color color;
+        public Set<Integer> selection;
+
+        public String toString() {
+            return name;
+        }
+
+        public Marker(String name, Color color) {
+            this.name = name;
+            this.color = color;
+            this.selection = new HashSet<Integer>();
+        }
+    }
 
     private Main(JFrame frame, ThumbnailBox results, PredicateListModel model,
                  CookieMap initialCookieMap,
@@ -144,8 +161,9 @@ public final class Main {
 
         /* Create a marker combo box for user to mark search results with different tags */
         /* TODO Create a enum type for marker type and parameterize the list */
-        ArrayList<String> markerList = new ArrayList<String>(Arrays.asList("True Pos", "False Pos", "False Neg"));
-        final JComboBox markerSelector = new JComboBox(markerList.toArray());
+        Marker[] markerList = new Marker[]{new Marker("True-Pos", Color.GREEN), new Marker("False-Pos", Color.RED)};
+//        ArrayList<String> markerList = new ArrayList<String>(Arrays.asList("True Pos", "False Pos", "False Neg"));
+        final JComboBox markerSelector = new JComboBox(markerList);
 
 
         /* FIXME Create a thread pool to .... do what ? */
@@ -562,6 +580,38 @@ public final class Main {
         resultsList.setCellRenderer(new SearchPanelCellRenderer());
         resultsList.setLayoutOrientation(JList.HORIZONTAL_WRAP);
         resultsList.setVisibleRowCount(0);
+
+        /*--------------------------------*/
+        /*--- Marker Selector Controller */
+        /*--------------------------------*/
+        markerSelector.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                Marker marker = (Marker) markerSelector.getSelectedItem();
+                System.out.format("Markder %s selected.\n", marker);
+                int[] a = new int[marker.selection.size()];
+                int i = 0;
+                for(Integer ind : marker.selection){
+                    a[i++] = ind;
+                }
+                resultsList.setSelectedIndices(a);
+                resultsList.setSelectionBackground(marker.color);
+                resultsList.repaint();
+            }
+        });
+
+        resultsList.addListSelectionListener(new ListSelectionListener() {
+            @Override
+            public void valueChanged(ListSelectionEvent e) {
+                Marker curMarker = (Marker) markerSelector.getSelectedItem();
+                curMarker.selection.clear();
+                for(int ind : resultsList.getSelectedIndices()){
+                    curMarker.selection.add(ind);
+                }
+            }
+        });
+
+
 
 
         /* -------------------------------------*/

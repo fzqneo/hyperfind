@@ -130,7 +130,6 @@ public class ThumbnailBox extends JPanel {
                 for (HyperFindSearchMonitor sm : tb.searchMonitors) {
                     sm.selectionChanged(results);
                 }
-                // TODO Handle marker here?
             }
         });
 
