@@ -97,6 +97,9 @@ public final class Main {
         }
     }
 
+    final static Marker[] markerList = new Marker[]{new Marker("True-Pos", Color.BLUE), new Marker("False-Pos", Color.RED)};
+
+
     private Main(JFrame frame, ThumbnailBox results, PredicateListModel model,
                  CookieMap initialCookieMap,
                  List<HyperFindPredicateFactory> examplePredicateFactories,
@@ -161,8 +164,6 @@ public final class Main {
 
         /* Create a marker combo box for user to mark search results with different tags */
         /* TODO Create a enum type for marker type and parameterize the list */
-        final Marker[] markerList = new Marker[]{new Marker("True-Pos", Color.GREEN), new Marker("False-Pos", Color.RED)};
-//        ArrayList<String> markerList = new ArrayList<String>(Arrays.asList("True Pos", "False Pos", "False Neg"));
         final JComboBox markerSelector = new JComboBox(markerList);
         final JLabel markerInfo = new JLabel("Images selected: 0", SwingConstants.CENTER);
 
@@ -453,11 +454,11 @@ public final class Main {
                                 File folder = fc.getSelectedFile();
 
                                 // Loop through each marker
-                                for(Marker marker : markerList){
+                                for (Marker marker : markerList) {
                                     try {
                                         // Retrieve result icons from marker's index set
                                         HashSet<Object> values = new HashSet<Object>();
-                                        for(Integer ind : marker.selection){
+                                        for (Integer ind : marker.selection) {
                                             values.add(resultsList.getModel().getElementAt(ind));
                                         }
 
@@ -596,6 +597,37 @@ public final class Main {
         /*--------------------------------*/
         /*--- Marker Selector Controller */
         /*--------------------------------*/
+        markerSelector.setRenderer(new ListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                Marker m = (Marker) value;
+                final Color color = m.color;
+                JLabel label = new JLabel();
+                label.setText(m.name);
+
+                label.setIcon(new Icon() {
+                    final int w = 10;
+
+                    @Override
+                    public void paintIcon(Component c, Graphics g, int x, int y) {
+                        g.setColor(color);
+                        g.fillRect(x, y, w, w);
+                    }
+
+                    @Override
+                    public int getIconWidth() {
+                        return w;
+                    }
+
+                    @Override
+                    public int getIconHeight() {
+                        return w;
+                    }
+                });
+                return label;
+            }
+        });
+
         markerSelector.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -603,7 +635,7 @@ public final class Main {
                 System.out.format("Marker %s selected.\n", marker);
                 int[] a = new int[marker.selection.size()];
                 int i = 0;
-                for(Integer ind : marker.selection){
+                for (Integer ind : marker.selection) {
                     a[i++] = ind;
                 }
                 resultsList.setSelectedIndices(a);
@@ -613,13 +645,14 @@ public final class Main {
                 markerInfo.setText("Images selected: " + marker.selection.size());
             }
         });
+        markerSelector.setSelectedIndex(0);
 
         resultsList.addListSelectionListener(new ListSelectionListener() {
             @Override
             public void valueChanged(ListSelectionEvent e) {
                 Marker marker = (Marker) markerSelector.getSelectedItem();
                 marker.selection.clear();
-                for(int ind : resultsList.getSelectedIndices()){
+                for (int ind : resultsList.getSelectedIndices()) {
                     marker.selection.add(ind);
                 }
                 markerInfo.setText("Images selected: " + marker.selection.size());
