@@ -97,7 +97,10 @@ public final class Main {
         }
     }
 
-    final static Marker[] markerList = new Marker[]{new Marker("True-Pos", Color.BLUE), new Marker("False-Pos", Color.RED)};
+    final static Marker[] markerList = new Marker[]{
+            new Marker("True-Pos", Color.GREEN),
+            new Marker("False-Pos", Color.RED),
+            new Marker("False-Neg", Color.BLUE)};
 
 
     private Main(JFrame frame, ThumbnailBox results, PredicateListModel model,
@@ -165,7 +168,8 @@ public final class Main {
         /* Create a marker combo box for user to mark search results with different tags */
         /* TODO Create a enum type for marker type and parameterize the list */
         final JComboBox markerSelector = new JComboBox(markerList);
-        final JLabel markerInfo = new JLabel("Images selected: 0", SwingConstants.CENTER);
+        final JLabel markerInfo = new JLabel("Images selected: 0", JLabel.CENTER);
+        final JList markerSelectedList = new JList();
 
 
         /* FIXME Create a thread pool to .... do what ? */
@@ -454,6 +458,7 @@ public final class Main {
                                 File folder = fc.getSelectedFile();
 
                                 // Loop through each marker
+                                int countFiles = 0;
                                 for (Marker marker : markerList) {
                                     try {
                                         // Retrieve result icons from marker's index set
@@ -503,7 +508,9 @@ public final class Main {
                                             File f = future.get();
                                             Path p = Files.copy(f.toPath(), destDir.resolve(f.toPath().getFileName()));
                                             System.out.println("Saving file " + p);
+                                            countFiles++;
                                         }
+
 
                                     } catch (InterruptedException e1) {
                                         e1.printStackTrace();
@@ -514,7 +521,7 @@ public final class Main {
                                         JOptionPane.showMessageDialog(frame, "Fail to save to directory " + folder);
                                     }
                                 }
-                                JOptionPane.showMessageDialog(frame, "Done. Files are saved under " + folder);
+                                JOptionPane.showMessageDialog(frame, "Done. " + countFiles + " files are saved under " + folder);
 
                             }
 
@@ -628,6 +635,31 @@ public final class Main {
             }
         });
 
+        markerSelectedList.setDragEnabled(false);
+        markerSelectedList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION); // FIXME make it not selectable?
+        markerSelectedList.setModel(new DefaultListModel<Integer>());
+        markerSelectedList.setCellRenderer(new ListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                int ind = (Integer) value;
+                JLabel label = new JLabel();
+                ResultIcon thumbnail = (ResultIcon) resultsList.getModel().getElementAt(ind);
+                label.setIcon(thumbnail.getIcon());
+                return label;
+            }
+        });
+        markerSelectedList.addListSelectionListener(new ListSelectionListener() {
+            @Override
+            public void valueChanged(ListSelectionEvent e) {
+                Object v = markerSelectedList.getSelectedValue();
+
+                if (null != v) {
+                    resultsList.ensureIndexIsVisible((Integer) v);
+                }
+            }
+        });
+
+
         markerSelector.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -656,8 +688,16 @@ public final class Main {
                     marker.selection.add(ind);
                 }
                 markerInfo.setText("Images selected: " + marker.selection.size());
+
+                DefaultListModel markerSelectedListModel = (DefaultListModel) markerSelectedList.getModel();
+                markerSelectedListModel.clear();
+                for (int ind : resultsList.getSelectedIndices()) {
+                    markerSelectedListModel.addElement(Integer.valueOf(ind));
+                }
             }
         });
+
+
 
 
 
@@ -715,13 +755,22 @@ public final class Main {
 
         // right side
         Box c3 = Box.createVerticalBox();
-        JPanel markerPanel = new JPanel();
-        markerPanel.add(markerSelector);
-        c3.add(markerPanel);
-        markerPanel.add(markerInfo);
+        c3.setPreferredSize(new Dimension(250, 600));
+//        JPanel markerPanel = new JPanel();
+        c3.add(markerSelector);
+        c3.add(markerInfo);
+        c3.add(new JLabel("<html>Hold <strong>CTRL</strong> for multi-select. <html>", JLabel.LEFT));
+//        c3.add(markerPanel);
+
+        JScrollPane jsp1 = new JScrollPane(markerSelectedList);
+        jsp1.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        jsp1.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
+        c3.add(jsp1);
+
         Box h2 = Box.createHorizontalBox();
         h2.add(downloadButton);
         c3.add(h2);
+
         b.add(c3);
 
         frame.pack();
